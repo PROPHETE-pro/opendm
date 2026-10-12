@@ -1457,9 +1457,18 @@ class DM05ForConditionalGeneration(DMPreTrainedModel):
                 inputs_embeds[input_ids == HISTORY_PAD_TOKEN_ID] = 0
 
             if has_history_pixels:
+                # FSDP (use_orig_params=False) leaves vision_tower.parameters()
+                # empty until that submodule's own forward. Rollout still sees
+                # the original weights, so keep that dtype when it is available.
+                vision_param = next(vlm_model.vision_tower.parameters(), None)
+                vision_dtype = (
+                    vision_param.dtype
+                    if vision_param is not None
+                    else inputs_embeds.dtype
+                )
                 pixels = history_pixel_values.to(
                     device=inputs_embeds.device,
-                    dtype=next(vlm_model.vision_tower.parameters()).dtype,
+                    dtype=vision_dtype,
                 )
                 image_features = vlm_model.get_image_features(
                     pixels, return_dict=True
